@@ -9,6 +9,12 @@ import soundfile as sf
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+# PyTorch 2.6+ weights_only 対応
+try:
+    torch.serialization.add_safe_globals([fairseq.data.dictionary.Dictionary])
+except:
+    pass
 from tqdm.auto import tqdm
 from einops import rearrange
 import re
