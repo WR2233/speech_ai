@@ -50,6 +50,10 @@ while [[ $# -gt 0 ]]; do
             NPROC="$2"
             shift 2
             ;;
+        --validation-file)
+            VALIDATION_FILE="$2"
+            shift 2
+            ;;
         *)
             shift
             ;;
@@ -58,6 +62,7 @@ done
 
 # デフォルト値設定
 TRAIN_FILE="${TRAIN_FILE:-${DATAROOT}/train.txt}"
+VALIDATION_FILE="${VALIDATION_FILE:-${TRAIN_FILE}}"
 OUTROOT="${OUTROOT:-output/stage1}"
 NUM_EPOCHS="${NUM_EPOCHS:-3}"
 BATCH_SIZE="${BATCH_SIZE:-3}"
@@ -80,11 +85,10 @@ speechgpt/src/train/ma_pretrain.py \
     --block_size 1024 \
     --model_name_or_path "${METAROOT}" \
     --train_file ${TRAIN_FILE} \
-    --validation_file ${DATAROOT}/dev.txt \
+    --validation_file ${VALIDATION_FILE} \
     --do_train \
     --output_dir "${OUTROOT}" \
     --preprocessing_num_workers 4 \
-    --overwrite_output_dir \
     --per_device_eval_batch_size ${BATCH_SIZE} \
     --per_device_train_batch_size ${BATCH_SIZE} \
     --gradient_accumulation_steps 1 \
