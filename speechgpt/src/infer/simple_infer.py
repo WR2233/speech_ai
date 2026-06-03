@@ -7,35 +7,50 @@ import re
 import soundfile as sf
 import numpy as np
 from datetime import datetime
+import subprocess
+import sys
 
 def extract_speech_units(text):
     """テキストから音声ユニット（<0>-<999>）を抽出"""
     units = re.findall(r'<(\d+)>', text)
     return [int(u) for u in units if 0 <= int(u) <= 999]
 
-def units_to_wav(units, output_path, sr=16000):
-    """音声ユニットから簡単な音声波形を生成して保存
-
-    注: 本格的な音声生成には fairseq の HiFiGAN が必要です
-    ここでは、ユニット値を利用した簡易的な波形を生成します
-    """
+def units_to_wav_with_subprocess(units, output_path, vocoder_script="speechgpt/src/infer/fairseq_generate_wav.py"):
+    """subprocess で fairseq 環境を使って音声を生成"""
     if not units:
         print(f"  No speech units found")
         return False
 
-    # ユニット値を正規化して振幅に変換
-    units_array = np.array(units, dtype=np.float32)
-    # 0-999 を -1～1 に正規化
-    normalized = (units_array / 500.0) - 1.0
-    # クリッピング
-    normalized = np.clip(normalized, -1.0, 1.0)
+    if not os.path.exists(vocoder_script):
+        print(f"  ERROR: Vocoder script not found: {vocoder_script}")
+        return False
 
-    # 波形を保存
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    sf.write(output_path, normalized, sr)
-    print(f"  Speech units: {len(units)} units")
-    print(f"  WAV file saved: {output_path}")
-    return True
+    try:
+        # ユニットを JSON 形式で準備
+        units_json = json.dumps(units)
+
+        # fairseq 環境で fairseq_generate_wav.py を実行
+        print(f"  Generating WAV with fairseq (subprocess)...")
+        cmd = [
+            "bash", "-c",
+            f"conda activate fairseq_env && python {vocoder_script} --units '{units_json}' --output '{output_path}'"
+        ]
+
+        result = subprocess.run(cmd, capture_output=True, text=True)
+
+        if result.returncode != 0:
+            print(f"  ERROR: fairseq subprocess failed")
+            print(f"  stdout: {result.stdout}")
+            print(f"  stderr: {result.stderr}")
+            return False
+
+        print(f"  Speech units: {len(units)} units")
+        print(f"  WAV file saved: {output_path}")
+        return True
+
+    except Exception as e:
+        print(f"  ERROR: Failed to generate WAV: {e}")
+        return False
 
 def main():
     parser = argparse.ArgumentParser()
@@ -94,11 +109,15 @@ def main():
         json.dump(result, f, ensure_ascii=False, indent=2)
     print(f"\nLog saved: {log_file}")
 
-    # 音声ユニットがあれば .wav を出力
+    # 音声ユニットがあれば .wav を出力（subprocess で fairseq を使用）
     if speech_units:
-        print("\nGenerating WAV file...")
+        print("\nGenerating WAV file (using fairseq subprocess)...")
         wav_file = os.path.join(args.output_dir, f"output_{timestamp}.wav")
-        units_to_wav(speech_units, wav_file)
+        success = units_to_wav_with_subprocess(speech_units, wav_file)
+        if not success:
+            print("  Note: WAV generation failed. Try running fairseq_env separately.")
+            print(f"  conda activate fairseq_env")
+            print(f"  python speechgpt/src/infer/fairseq_generate_wav.py --units '{speech_units}' --output {wav_file}")
     else:
         print("\nNo speech units generated")
 
