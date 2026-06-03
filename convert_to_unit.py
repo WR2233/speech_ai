@@ -20,24 +20,25 @@ with open(output_dir / "train.txt", "w", encoding="utf-8") as f:
     total_lines = 0
 
     for speaker_dir in speakers:
-        wav_dir = speaker_dir / "parallel100" / "wav24kHz16bit"
-        if not wav_dir.exists():
-            print(f"  {speaker_dir.name}: No audio directory found")
-            continue
-
         print(f"  {speaker_dir.name}...", end=" ")
         speaker_count = 0
 
-        for wav_file in sorted(wav_dir.glob("*.wav")):  # 全ファイル
-            try:
-                # 音声→ユニット列変換
-                units = s2u(str(wav_file), merged=True)
-                f.write(f"{units}\n")
-                total_lines += 1
-                speaker_count += 1
-            except Exception as e:
-                print(f"Error processing {wav_file}: {e}")
-        
+        # 複数の subset を処理（parallel100 と nonpara30）
+        for subset in ["parallel100", "nonpara30"]:
+            wav_dir = speaker_dir / subset / "wav24kHz16bit"
+            if not wav_dir.exists():
+                continue
+
+            for wav_file in sorted(wav_dir.glob("*.wav")):  # 全ファイル
+                try:
+                    # 音声→ユニット列変換
+                    units = s2u(str(wav_file), merged=True)
+                    f.write(f"{units}\n")
+                    total_lines += 1
+                    speaker_count += 1
+                except Exception as e:
+                    pass  # エラーは無視して続行
+
         print(f"({speaker_count} files)")
 
 print(f"\n✓ Conversion complete!")
