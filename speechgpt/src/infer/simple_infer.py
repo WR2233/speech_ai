@@ -32,7 +32,7 @@ def units_to_wav_with_subprocess(units, output_path, vocoder_script="speechgpt/s
         # fairseq 環境で fairseq_generate_wav.py を実行
         print(f"  Generating WAV with fairseq (subprocess)...")
         cmd = [
-            "bash", "-c",
+            "bash", "-l", "-c",
             f"conda activate fairseq_env && python {vocoder_script} --units '{units_json}' --output '{output_path}'"
         ]
 
