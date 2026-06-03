@@ -11,6 +11,7 @@ import math
 import tqdm
 import glob
 import transformers
+import wandb
 from transformers import Trainer, AutoModelForCausalLM, AutoTokenizer, HfArgumentParser, TrainingArguments, DataCollatorForSeq2Seq
 from transformers.trainer_utils import get_last_checkpoint
 from speechgpt.utils.prompter import Prompter
@@ -110,6 +111,9 @@ class DataArguments:
 @dataclass
 class TrainingArguments(transformers.TrainingArguments):
     optim: str = field(default="adamw_torch")
+    report_to: str = field(default="wandb", metadata={"help": "Report metrics to wandb"})
+    wandb_project: str = field(default="speech-ai-stage1", metadata={"help": "WandB project name"})
+    wandb_entity: str = field(default=None, metadata={"help": "WandB entity (team/username)"})
 
 
 
@@ -141,6 +145,19 @@ def train():
     )
     logger.info(f"Training/evaluation parameters {training_args}")
 
+    # Initialize WandB
+    if training_args.local_rank in [-1, 0]:  # Only on main process
+        wandb.init(
+            project=training_args.wandb_project,
+            entity=training_args.wandb_entity,
+            name=f"stage1-{model_args.model_name_or_path.split('/')[-1]}",
+            config={
+                "model": model_args.model_name_or_path,
+                "learning_rate": training_args.learning_rate,
+                "num_epochs": training_args.num_train_epochs,
+                "batch_size": training_args.per_device_train_batch_size,
+            }
+        )
 
     # Detecting last checkpoint.
     last_checkpoint = None

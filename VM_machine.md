@@ -266,21 +266,21 @@ bash speechgpt/scripts/cm_sft.sh \
 ### 11.1 JVS Corpus のダウンロード
 
 ```bash
-# Google Drive からダウンロード（3.5 GB）
-# https://sites.google.com/site/shinnosuketakamichi/research-topics/jvs_corpus
-# から zip ファイルをダウンロード
-
-# または gdown を使用
-pip install gdown
-gdown <GOOGLE_DRIVE_FILE_ID> -O jvs_corpus.zip
-
-# 解凍
 mkdir -p /mnt/datasets
 cd /mnt/datasets
-unzip jvs_corpus.zip
+
+gdown https://drive.google.com/uc?id=19oAw8wWn3Y7z6CKChRdAyGOB9yupL_Xt
+
+# 解凍
+unzip jvs_v1.zip
 ls jvs_corpus/  # sample_jvs001, sample_jvs002, ... が見える
 ```
 
+
+```
+pip install wandb
+wandb login
+```
 ### 11.2 Stage 1 お試し用データ準備
 
 ```bash
@@ -350,4 +350,77 @@ tail -f output/stage1_trial_gemma2/training_args.bin
 # TensorBoard で可視化（オプション）
 tensorboard --logdir output/stage1_trial_gemma2
 ```
+
+### 11.5 WandB による可視化（推奨）
+
+#### 11.5.1 WandB セットアップ
+
+```bash
+# WandB CLI をインストール（既にインストール済みの場合はスキップ）
+pip install wandb
+
+# WandB にログイン
+wandb login
+# → https://wandb.ai/authorize で API キーを取得
+# → コンソールでキーをペースト
+```
+
+#### 11.5.2 Stage 1 訓練で WandB を有効化
+
+```bash
+cd ~/speech_ai
+
+# WandB 有効で Stage 1 学習実行
+bash speechgpt/scripts/ma_pretrain.sh \
+  1 0 localhost 29500 \
+  --model-name-or-path google/gemma-2-2b-jpn-it \
+  --train-file data/stage1_trial/train.txt \
+  --output-dir output/stage1_trial_gemma2 \
+  --num-train-epochs 3 \
+  --per-device-train-batch-size 4 \
+  --learning-rate 5e-5 \
+  --report_to wandb \
+  --wandb_project speech-ai-stage1 \
+  --wandb_entity <your-wandb-username>  # 省略時: personal workspace
+```
+
+#### 11.5.3 WandB ダッシュボードで確認
+
+訓練開始後、以下にアクセス：
+
+```
+https://wandb.ai/<your-wandb-username>/speech-ai-stage1
+```
+
+**ダッシュボードで表示される項目**:
+- Loss (訓練損失、検証損失)
+- Learning Rate
+- GPU メモリ使用率
+- 訓練時間
+- Epoch プログレス
+- モデル設定（model, batch size など）
+
+#### 11.5.4 複数実験の比較
+
+複数の設定でお試し学習を実行する場合：
+
+```bash
+# 実験1: batch_size=4
+bash speechgpt/scripts/ma_pretrain.sh 1 0 localhost 29500 \
+  --model-name-or-path google/gemma-2-2b-jpn-it \
+  --train-file data/stage1_trial/train.txt \
+  --output-dir output/stage1_trial_bs4 \
+  --per-device-train-batch-size 4 \
+  --report_to wandb
+
+# 実験2: batch_size=8
+bash speechgpt/scripts/ma_pretrain.sh 1 0 localhost 29500 \
+  --model-name-or-path google/gemma-2-2b-jpn-it \
+  --train-file data/stage1_trial/train.txt \
+  --output-dir output/stage1_trial_bs8 \
+  --per-device-train-batch-size 8 \
+  --report_to wandb
+```
+
+WandB で両実験を同じグラフ上で比較可能。
 
