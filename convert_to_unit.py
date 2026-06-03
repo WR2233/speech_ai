@@ -13,22 +13,22 @@ output_dir.mkdir(parents=True, exist_ok=True)
 # Speech2Unit ロード
 s2u = Speech2Unit(ckpt_dir=os.path.expanduser("~/speech_ai/speechgpt/utils/speech2unit/"))
 
-speakers = sorted([d for d in jvs_root.glob("jvs*")])[:5]
+speakers = sorted([d for d in jvs_root.glob("jvs*")])  # 全話者
 print(f"Converting {len(speakers)} speakers to units...")
 
 with open(output_dir / "train.txt", "w", encoding="utf-8") as f:
     total_lines = 0
-    
+
     for speaker_dir in speakers:
         wav_dir = speaker_dir / "parallel100" / "wav24kHz16bit"
         if not wav_dir.exists():
             print(f"  {speaker_dir.name}: No audio directory found")
             continue
-        
+
         print(f"  {speaker_dir.name}...", end=" ")
         speaker_count = 0
-        
-        for wav_file in sorted(wav_dir.glob("*.wav"))[:50]:  # 最初の50件
+
+        for wav_file in sorted(wav_dir.glob("*.wav")):  # 全ファイル
             try:
                 # 音声→ユニット列変換
                 units = s2u(str(wav_file), merged=True)
