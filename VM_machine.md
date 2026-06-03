@@ -260,3 +260,94 @@ bash speechgpt/scripts/cm_sft.sh \
   --model-name google/gemma-2-2b-jpn-it \
   --data-path data/stage2/cross_modal_instruction.jsonl
 ```
+
+## 11. お試し学習（JVS Corpus を使用）
+
+### 11.1 JVS Corpus のダウンロード
+
+```bash
+# Google Drive からダウンロード（3.5 GB）
+# https://sites.google.com/site/shinnosuketakamichi/research-topics/jvs_corpus
+# から zip ファイルをダウンロード
+
+# または gdown を使用
+pip install gdown
+gdown <GOOGLE_DRIVE_FILE_ID> -O jvs_corpus.zip
+
+# 解凍
+mkdir -p /mnt/datasets
+cd /mnt/datasets
+unzip jvs_corpus.zip
+ls jvs_corpus/  # sample_jvs001, sample_jvs002, ... が見える
+```
+
+### 11.2 Stage 1 お試し用データ準備
+
+```bash
+# お試し用（少数話者抽出版）データセット作成
+mkdir -p ~/speech_ai/data/stage1_trial
+
+# JVS Corpus から parallel100 のみを抽出（統一された読み上げ）
+# サンプル：最初の5人の話者の parallel100 のみ使用
+cat > ~/speech_ai/prepare_jvs_trial.py << 'EOF'
+import os
+import shutil
+from pathlib import Path
+
+jvs_root = Path("/mnt/datasets/jvs_corpus")
+output_dir = Path(os.path.expanduser("~/speech_ai/data/stage1_trial"))
+output_dir.mkdir(parents=True, exist_ok=True)
+
+# 最初の5人の話者を抽出
+speakers = sorted([d for d in jvs_root.glob("sample_jvs*")])[:5]
+
+with open(output_dir / "train.txt", "w") as f:
+    for speaker_dir in speakers:
+        # parallel100 ディレクトリから音声ファイルを抽出
+        parallel_dir = speaker_dir / "parallel100"
+        if parallel_dir.exists():
+            for wav_file in sorted(parallel_dir.glob("*.wav"))[:50]:  # 最初の50件のみ
+                # テキスト転写を読み込む
+                txt_file = wav_file.with_suffix(".txt")
+                if txt_file.exists():
+                    with open(txt_file, "r", encoding="utf-8") as tf:
+                        text = tf.read().strip()
+                    # audio ディレクトリにコピー
+                    os.makedirs(output_dir / "audio", exist_ok=True)
+                    shutil.copy(wav_file, output_dir / "audio" / wav_file.name)
+                    # テキストを出力
+                    f.write(f"{text}\n")
+
+print(f"✓ Trial dataset created: {output_dir}")
+print(f"  Total files: {len(list((output_dir / 'audio').glob('*.wav')))}")
+EOF
+
+python ~/speech_ai/prepare_jvs_trial.py
+```
+
+### 11.3 Stage 1 お試し学習実行
+
+```bash
+cd ~/speech_ai
+
+# 学習パラメータ（GPU メモリ削減版）
+bash speechgpt/scripts/ma_pretrain.sh \
+  1 0 localhost 29500 \
+  --model-name-or-path google/gemma-2-2b-jpn-it \
+  --train-file data/stage1_trial/train.txt \
+  --output-dir output/stage1_trial_gemma2 \
+  --num-train-epochs 3 \
+  --per-device-train-batch-size 4 \
+  --learning-rate 5e-5
+```
+
+### 11.4 学習モニタリング
+
+```bash
+# ログの確認
+tail -f output/stage1_trial_gemma2/training_args.bin
+
+# TensorBoard で可視化（オプション）
+tensorboard --logdir output/stage1_trial_gemma2
+```
+

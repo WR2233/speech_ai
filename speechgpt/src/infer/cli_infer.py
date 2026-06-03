@@ -13,7 +13,7 @@ import traceback
 from peft import PeftModel
 from speechgpt.utils.speech2unit.speech2unit import Speech2Unit
 import transformers
-from transformers import AutoConfig, LlamaForCausalLM, LlamaTokenizer, GenerationConfig
+from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, GenerationConfig
 
 
 logging.basicConfig()
@@ -65,7 +65,7 @@ class SpeechGPTInference:
         self.s2u = Speech2Unit(ckpt_dir=s2u_dir)
         
         #model
-        self.model = LlamaForCausalLM.from_pretrained(
+        self.model = AutoModelForCausalLM.from_pretrained(
             model_name_or_path,
             load_in_8bit=False,
             torch_dtype=torch.float16,
@@ -87,7 +87,7 @@ class SpeechGPTInference:
             self.model = torch.compile(self.model)
 
         #tokenizer
-        self.tokenizer = LlamaTokenizer.from_pretrained(
+        self.tokenizer = AutoTokenizer.from_pretrained(
             model_name_or_path)
         self.tokenizer.pad_token_id = (0)
         self.tokenizer.padding_side = "left" 

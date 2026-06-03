@@ -11,7 +11,7 @@ import math
 import tqdm
 import glob
 import transformers
-from transformers import Trainer, LlamaForCausalLM, LlamaTokenizer, HfArgumentParser, TrainingArguments, DataCollatorForSeq2Seq
+from transformers import Trainer, AutoModelForCausalLM, AutoTokenizer, HfArgumentParser, TrainingArguments, DataCollatorForSeq2Seq
 from transformers.trainer_utils import get_last_checkpoint
 from speechgpt.utils.prompter import Prompter
 import os
@@ -158,11 +158,11 @@ def train():
             )
 
 
-    model = LlamaForCausalLM.from_pretrained(
+    model = AutoModelForCausalLM.from_pretrained(
         model_args.model_name_or_path,
     ).to(torch.device(training_args.device))
 
-    tokenizer = LlamaTokenizer.from_pretrained(
+    tokenizer = AutoTokenizer.from_pretrained(
         model_args.model_name_or_path,
     )
     tokenizer.pad_token_id = (
