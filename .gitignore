@@ -68,3 +68,7 @@ temp/
 *.bin
 gpu.md
 *.pem
+
+wandb/*
+data/*
+inference_output/*
