@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.expanduser("~/speech_ai"))
 
 from speechgpt.utils.speech2unit.speech2unit import Speech2Unit
 
-jvs_root = Path("/mnt/datasets/jvs_ver1")
+jvs_root = Path("~/datasets/jvs_ver1")
 output_dir = Path(os.path.expanduser("~/speech_ai/data/stage1_trial"))
 output_dir.mkdir(parents=True, exist_ok=True)
 
