@@ -281,48 +281,167 @@ ls jvs_corpus/  # sample_jvs001, sample_jvs002, ... が見える
 pip install wandb
 wandb login
 ```
-### 11.2 Stage 1 お試し用データ準備
+### 11.2 Stage 1 お試し用データ準備（mHuBERT でユニット列に変換）
+
+JVS Corpus の音声を mHuBERT で処理してユニット列に変換します：
+
+#### 11.2.1 mHuBERT モデルダウンロード確認
 
 ```bash
-# お試し用（少数話者抽出版）データセット作成
+# 既に準備済みか確認
+ls -lh ~/speech_ai/speechgpt/utils/speech2unit/mhubert*.{pt,bin}
+
+# なければダウンロード
+cd ~/speech_ai/speechgpt/utils/speech2unit/
+wget https://dl.fbaipublicfiles.com/hubert/mhubert_base_vp_en_es_fr_it3.pt
+wget https://dl.fbaipublicfiles.com/hubert/mhubert_base_vp_en_es_fr_it3_L11_km1000.bin
+```
+
+#### 11.2.2 音声→ユニット列変換スクリプト
+
+```bash
+cat > ~/speech_ai/convert_jvs_to_units.py << 'EOF'
+import os
+import sys
+from pathlib import Path
+sys.path.insert(0, os.path.expanduser("~/speech_ai"))
+
+from speechgpt.utils.speech2unit.speech2unit import Speech2Unit
+
+jvs_root = Path("/mnt/datasets/jvs_ver1")
+output_dir = Path(os.path.expanduser("~/speech_ai/data/stage1_trial"))
+output_dir.mkdir(parents=True, exist_ok=True)
+
+# Speech2Unit ロード
+s2u = Speech2Unit(ckpt_dir=os.path.expanduser("~/speech_ai/speechgpt/utils/speech2unit/"))
+
+speakers = sorted([d for d in jvs_root.glob("jvs*")])[:5]
+print(f"Converting {len(speakers)} speakers to units...")
+
+with open(output_dir / "train.txt", "w", encoding="utf-8") as f:
+    total_lines = 0
+    
+    for speaker_dir in speakers:
+        wav_dir = speaker_dir / "parallel100" / "wav24kHz16bit"
+        if not wav_dir.exists():
+            print(f"  {speaker_dir.name}: No audio directory found")
+            continue
+        
+        print(f"  {speaker_dir.name}...", end=" ")
+        speaker_count = 0
+        
+        for wav_file in sorted(wav_dir.glob("*.wav"))[:50]:  # 最初の50件
+            try:
+                # 音声→ユニット列変換
+                units = s2u(str(wav_file), merged=True)
+                f.write(f"{units}\n")
+                total_lines += 1
+                speaker_count += 1
+            except Exception as e:
+                print(f"Error processing {wav_file}: {e}")
+        
+        print(f"({speaker_count} files)")
+
+print(f"\n✓ Conversion complete!")
+print(f"  Total lines: {total_lines}")
+print(f"  Output: {output_dir / 'train.txt'}")
+
+# データプレビュー
+print(f"\n=== Train.txt プレビュー ===")
+with open(output_dir / "train.txt", "r", encoding="utf-8") as f:
+    for i, line in enumerate(f):
+        if i < 3:
+            print(f"{i+1}: {line.strip()[:80]}...")
+        else:
+            break
+EOF
+
+python ~/speech_ai/convert_jvs_to_units.py
+```
+
+#### 11.2.3 データ確認
+
+```bash
+# 生成ファイル確認
+ls -lh ~/speech_ai/data/stage1_trial/
+
+# ユニット列の内容確認
+head -3 ~/speech_ai/data/stage1_trial/train.txt
+
+# 行数確認
+wc -l ~/speech_ai/data/stage1_trial/train.txt
+```
+
+### 11.3 Stage 1 お試し用データ準備（テキストのみ版）
+
+JVS Corpus から `parallel100` セットのテキストデータを抽出します（ユニット列変換不要な場合）：
+
+```bash
 mkdir -p ~/speech_ai/data/stage1_trial
 
-# JVS Corpus から parallel100 のみを抽出（統一された読み上げ）
-# サンプル：最初の5人の話者の parallel100 のみ使用
+# JVS Corpus データ抽出スクリプト
 cat > ~/speech_ai/prepare_jvs_trial.py << 'EOF'
 import os
-import shutil
 from pathlib import Path
 
-jvs_root = Path("/mnt/datasets/jvs_corpus")
+jvs_root = Path("/mnt/datasets/jvs_ver1")
 output_dir = Path(os.path.expanduser("~/speech_ai/data/stage1_trial"))
 output_dir.mkdir(parents=True, exist_ok=True)
 
 # 最初の5人の話者を抽出
-speakers = sorted([d for d in jvs_root.glob("sample_jvs*")])[:5]
+speakers = sorted([d for d in jvs_root.glob("jvs*")])[:5]
+print(f"Processing {len(speakers)} speakers...")
 
-with open(output_dir / "train.txt", "w") as f:
+with open(output_dir / "train.txt", "w", encoding="utf-8") as f:
+    total_lines = 0
+    
     for speaker_dir in speakers:
-        # parallel100 ディレクトリから音声ファイルを抽出
-        parallel_dir = speaker_dir / "parallel100"
-        if parallel_dir.exists():
-            for wav_file in sorted(parallel_dir.glob("*.wav"))[:50]:  # 最初の50件のみ
-                # テキスト転写を読み込む
-                txt_file = wav_file.with_suffix(".txt")
-                if txt_file.exists():
-                    with open(txt_file, "r", encoding="utf-8") as tf:
-                        text = tf.read().strip()
-                    # audio ディレクトリにコピー
-                    os.makedirs(output_dir / "audio", exist_ok=True)
-                    shutil.copy(wav_file, output_dir / "audio" / wav_file.name)
-                    # テキストを出力
-                    f.write(f"{text}\n")
+        # parallel100 セットのテキストファイル
+        # JVS Corpus 構造: jvs001/parallel100/transcripts_utf8.txt
+        transcript_path = speaker_dir / "parallel100" / "transcripts_utf8.txt"
+        
+        if transcript_path.exists():
+            with open(transcript_path, "r", encoding="utf-8") as tf:
+                transcripts = [line.strip() for line in tf.readlines()]
+            
+            print(f"  {speaker_dir.name}: Found {len(transcripts)} transcripts")
+            
+            # テキストを出力（最初の100件）
+            for transcript in transcripts[:100]:
+                if transcript:  # 空行をスキップ
+                    f.write(f"{transcript}\n")
+                    total_lines += 1
+        else:
+            print(f"  {speaker_dir.name}: transcript not found at {transcript_path}")
 
-print(f"✓ Trial dataset created: {output_dir}")
-print(f"  Total files: {len(list((output_dir / 'audio').glob('*.wav')))}")
+print(f"\n✓ Created {total_lines} lines in {output_dir / 'train.txt'}")
+
+# データ確認
+print(f"\n=== Train.txt プレビュー ===")
+with open(output_dir / "train.txt", "r", encoding="utf-8") as f:
+    for i, line in enumerate(f):
+        if i < 5:
+            print(f"{i+1}: {line.strip()}")
+        else:
+            break
 EOF
 
 python ~/speech_ai/prepare_jvs_trial.py
+```
+
+**JVS Corpus ディレクトリ構造**:
+```
+jvs_ver1/
+├── jvs001/
+│   ├── parallel100/
+│   │   ├── transcripts_utf8.txt   ← ここから読み込み
+│   │   └── wav24kHz16bit/
+│   ├── nonpara30/
+│   ├── whisper10/
+│   └── falset10/
+├── jvs002/
+├── jvs003/
+└── ...
 ```
 
 ### 11.3 Stage 1 お試し学習実行
