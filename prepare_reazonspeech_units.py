@@ -104,57 +104,60 @@ def main():
         print(f"Target: {target_hours:.0f} hours (Train: {train_hours:.0f}h / Valid: {valid_hours:.0f}h)\n")
 
     with tempfile.TemporaryDirectory() as temp_dir:
-        try:
-            for idx, sample in enumerate(train_data):
-                # テストモード：サンプル数制限
-                if max_samples and idx >= max_samples:
-                    print(f"  Reached {max_samples} samples. Stopping...")
+        idx = 0
+        while True:
+            # テストモード：サンプル数制限
+            if max_samples and idx >= max_samples:
+                print(f"  Reached {max_samples} samples. Stopping...")
+                break
+
+            # データセット終了判定
+            if idx >= len(train_data):
+                print(f"  Reached end of dataset ({idx} samples).")
+                break
+
+            temp_wav_path = None
+            try:
+                # オーディオを取得（インデックスベースアクセス）
+                sample = train_data[idx]
+                audio = sample['audio']
+                wav = audio['array']
+                sr = audio['sampling_rate']
+
+                # 音声の長さ（秒）
+                duration_sec = len(wav) / sr
+                total_duration_hours += duration_sec / 3600
+
+                # 一時ファイルに保存
+                temp_wav_path = Path(temp_dir) / f"temp_{idx}.wav"
+                sf.write(str(temp_wav_path), wav, sr)
+
+                # units に変換
+                units = s2u(str(temp_wav_path), merged=True)
+
+                # train / valid に分割
+                if total_duration_hours <= train_hours:
+                    train_lines.append(units)
+                elif total_duration_hours <= target_hours:
+                    valid_lines.append(units)
+
+                # 進捗表示
+                if (idx + 1) % 10 == 0 or args.test:
+                    print(f"  [{idx + 1:6d}] {total_duration_hours:7.2f}h | Train: {len(train_lines):6d} | Valid: {len(valid_lines):6d}")
+
+                # フル実行時：目標時間に達したら終了
+                if not args.test and total_duration_hours >= target_hours:
+                    print(f"  Reached {target_hours:.0f} hours. Stopping...")
                     break
 
-                temp_wav_path = None
-                try:
-                    # オーディオを取得
-                    audio = sample['audio']
-                    wav = audio['array']
-                    sr = audio['sampling_rate']
+            except Exception as e:
+                print(f"  [{idx}] Skipped: {e}")
 
-                    # 音声の長さ（秒）
-                    duration_sec = len(wav) / sr
-                    total_duration_hours += duration_sec / 3600
-
-                    # 一時ファイルに保存
-                    temp_wav_path = Path(temp_dir) / f"temp_{idx}.wav"
-                    sf.write(str(temp_wav_path), wav, sr)
-
-                    # units に変換
-                    units = s2u(str(temp_wav_path), merged=True)
-
-                    # train / valid に分割
-                    if total_duration_hours <= train_hours:
-                        train_lines.append(units)
-                    elif total_duration_hours <= target_hours:
-                        valid_lines.append(units)
-
-                    # 進捗表示
-                    if (idx + 1) % 10 == 0 or args.test:
-                        print(f"  [{idx + 1:6d}] {total_duration_hours:7.2f}h | Train: {len(train_lines):6d} | Valid: {len(valid_lines):6d}")
-
-                    # フル実行時：目標時間に達したら終了
-                    if not args.test and total_duration_hours >= target_hours:
-                        print(f"  Reached {target_hours:.0f} hours. Stopping...")
-                        break
-
-                except Exception as e:
-                    print(f"  [{idx}] Warning: {e}")
-                    continue
-                finally:
-                    # 一時ファイルを削除
-                    if temp_wav_path and temp_wav_path.exists():
-                        temp_wav_path.unlink()
-
-        except Exception as e:
-            print(f"\n  ⚠️  Dataset iteration error: {e}")
-            print(f"  → Processing stopped, but will save {len(train_lines)} train samples\n")
+            finally:
+                # 一時ファイルを削除
+                if temp_wav_path and temp_wav_path.exists():
+                    temp_wav_path.unlink()
+                idx += 1
 
     # train.txt に書き込み
     if train_lines:
