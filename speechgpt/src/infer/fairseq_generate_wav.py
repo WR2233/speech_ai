@@ -60,6 +60,10 @@ def main():
     if args.units.startswith("["):
         # JSON形式
         units = json.loads(args.units)
+    elif args.units.startswith("<sosp>"):
+        # <sosp><245><166>...<eosp> 形式
+        import re
+        units = [int(x) for x in re.findall(r"<(\d+)>", args.units)]
     else:
         # カンマ区切り形式
         units = [int(u.strip()) for u in args.units.split(",")]
