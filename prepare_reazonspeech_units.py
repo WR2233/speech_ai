@@ -83,7 +83,7 @@ def main():
     s2u = Speech2Unit(ckpt_dir=os.path.expanduser("~/speech_ai/speechgpt/utils/speech2unit/"))
     print("✓ Model loaded\n")
 
-    # ReazonSpeech データセットをロード（test.py の方法）
+    # ReazonSpeech データセットをロード
     print("Loading ReazonSpeech dataset...")
     dataset = load_dataset(
         "reazon-research/reazonspeech",
@@ -112,50 +112,47 @@ def main():
 
                 temp_wav_path = None
                 try:
-                # オーディオを取得
-                try:
+                    # オーディオを取得
                     audio = sample['audio']
                     wav = audio['array']
                     sr = audio['sampling_rate']
-                except Exception as audio_err:
-                    print(f"  [{idx}] Audio decode error: {audio_err}")
+
+                    # 音声の長さ（秒）
+                    duration_sec = len(wav) / sr
+                    total_duration_hours += duration_sec / 3600
+
+                    # 一時ファイルに保存
+                    temp_wav_path = Path(temp_dir) / f"temp_{idx}.wav"
+                    sf.write(str(temp_wav_path), wav, sr)
+
+                    # units に変換
+                    units = s2u(str(temp_wav_path), merged=True)
+
+                    # train / valid に分割
+                    if total_duration_hours <= train_hours:
+                        train_lines.append(units)
+                    elif total_duration_hours <= target_hours:
+                        valid_lines.append(units)
+
+                    # 進捗表示
+                    if (idx + 1) % 10 == 0 or args.test:
+                        print(f"  [{idx + 1:6d}] {total_duration_hours:7.2f}h | Train: {len(train_lines):6d} | Valid: {len(valid_lines):6d}")
+
+                    # フル実行時：目標時間に達したら終了
+                    if not args.test and total_duration_hours >= target_hours:
+                        print(f"  Reached {target_hours:.0f} hours. Stopping...")
+                        break
+
+                except Exception as e:
+                    print(f"  [{idx}] Warning: {e}")
                     continue
-
-                # 音声の長さ（秒）
-                duration_sec = len(wav) / sr
-                total_duration_hours += duration_sec / 3600
-
-                # 一時ファイルに保存
-                temp_wav_path = Path(temp_dir) / f"temp_{idx}.wav"
-                sf.write(str(temp_wav_path), wav, sr)
-
-                # units に変換
-                units = s2u(str(temp_wav_path), merged=True)
-
-                # train / valid に分割
-                if total_duration_hours <= train_hours:
-                    train_lines.append(units)
-                elif total_duration_hours <= target_hours:
-                    valid_lines.append(units)
-
-                # 進捗表示
-                if (idx + 1) % 10 == 0 or args.test:
-                    print(f"  [{idx + 1:6d}] {total_duration_hours:7.2f}h | Train: {len(train_lines):6d} | Valid: {len(valid_lines):6d}")
-
-                # フル実行時：目標時間に達したら終了
-                if not args.test and total_duration_hours >= target_hours:
-                    print(f"  Reached {target_hours:.0f} hours. Stopping...")
-                    break
-
-            except Exception as e:
-                print(f"  [{idx}] Warning: {e}")
-                continue
                 finally:
                     # 一時ファイルを削除
                     if temp_wav_path and temp_wav_path.exists():
                         temp_wav_path.unlink()
+
         except Exception as e:
-            print(f"\n  ⚠️  Dataset iteration error (sample ~{idx}): {e}")
+            print(f"\n  ⚠️  Dataset iteration error: {e}")
             print(f"  → Processing stopped, but will save {len(train_lines)} train samples\n")
 
     # train.txt に書き込み
