@@ -103,14 +103,15 @@ def main():
         print(f"Target: {target_hours:.0f} hours (Train: {train_hours:.0f}h / Valid: {valid_hours:.0f}h)\n")
 
     with tempfile.TemporaryDirectory() as temp_dir:
-        for idx, sample in enumerate(train_data):
-            # テストモード：サンプル数制限
-            if max_samples and idx >= max_samples:
-                print(f"  Reached {max_samples} samples. Stopping...")
-                break
+        try:
+            for idx, sample in enumerate(train_data):
+                # テストモード：サンプル数制限
+                if max_samples and idx >= max_samples:
+                    print(f"  Reached {max_samples} samples. Stopping...")
+                    break
 
-            temp_wav_path = None
-            try:
+                temp_wav_path = None
+                try:
                 # オーディオを取得
                 try:
                     audio = sample['audio']
