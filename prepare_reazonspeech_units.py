@@ -109,11 +109,16 @@ def main():
                 print(f"  Reached {max_samples} samples. Stopping...")
                 break
 
+            temp_wav_path = None
             try:
                 # オーディオを取得
-                audio = sample['audio']
-                wav = audio['array']
-                sr = audio['sampling_rate']
+                try:
+                    audio = sample['audio']
+                    wav = audio['array']
+                    sr = audio['sampling_rate']
+                except Exception as audio_err:
+                    print(f"  [{idx}] Audio decode error: {audio_err}")
+                    continue
 
                 # 音声の長さ（秒）
                 duration_sec = len(wav) / sr
@@ -146,7 +151,7 @@ def main():
                 continue
             finally:
                 # 一時ファイルを削除
-                if temp_wav_path.exists():
+                if temp_wav_path and temp_wav_path.exists():
                     temp_wav_path.unlink()
 
     # train.txt に書き込み
