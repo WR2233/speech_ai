@@ -150,10 +150,13 @@ def main():
             except Exception as e:
                 print(f"  [{idx}] Warning: {e}")
                 continue
-            finally:
-                # 一時ファイルを削除
-                if temp_wav_path and temp_wav_path.exists():
-                    temp_wav_path.unlink()
+                finally:
+                    # 一時ファイルを削除
+                    if temp_wav_path and temp_wav_path.exists():
+                        temp_wav_path.unlink()
+        except Exception as e:
+            print(f"\n  ⚠️  Dataset iteration error (sample ~{idx}): {e}")
+            print(f"  → Processing stopped, but will save {len(train_lines)} train samples\n")
 
     # train.txt に書き込み
     if train_lines:
