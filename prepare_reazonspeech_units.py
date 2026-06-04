@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
-J-CHAT データセットをダウンロードして、train.txt と valid.txt を生成するスクリプト
+ReazonSpeech データセットをダウンロードして、train.txt と valid.txt を生成するスクリプト
 WAV → discrete units に変換（mHuBERT 使用）
 
 使用例:
   # フル訓練（10,000時間）
-  python prepare_jchat_dataset.py
+  python prepare_reazonspeech_units.py
 
   # テストモード（1時間のみ）
-  python prepare_jchat_dataset.py --test
+  python prepare_reazonspeech_units.py --test
 
   # カスタム出力ディレクトリ
-  python prepare_jchat_dataset.py --output-dir ~/speech_ai/data/stage1_custom
+  python prepare_reazonspeech_units.py --output-dir ~/speech_ai/data/stage1_reazonspeech
 
   # テストモード + カスタムディレクトリ
-  python prepare_jchat_dataset.py --test --output-dir ~/speech_ai/data/stage1_test
+  python prepare_reazonspeech_units.py --test --output-dir ~/speech_ai/data/stage1_test
 """
 
 import os
@@ -39,13 +39,13 @@ except ImportError as e:
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="J-CHAT データセットをダウンロードして train.txt / valid.txt を生成"
+        description="ReazonSpeech データセットをダウンロードして train.txt / valid.txt を生成"
     )
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="~/speech_ai/data/stage1",
-        help="出力ディレクトリ（デフォルト: ~/speech_ai/data/stage1）"
+        default="~/speech_ai/data/stage1_reazonspeech",
+        help="出力ディレクトリ（デフォルト: ~/speech_ai/data/stage1_reazonspeech）"
     )
     parser.add_argument(
         "--test",
@@ -63,6 +63,13 @@ def parse_args():
         type=float,
         default=2000.0,
         help="検証データの時間数（デフォルト: 2000）"
+    )
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default="small-v1",
+        choices=["small-v1", "medium-v1", "large-v1"],
+        help="ReazonSpeech のバージョン（デフォルト: small-v1）"
     )
     return parser.parse_args()
 
@@ -93,15 +100,19 @@ def main():
     print("Loading Speech2Unit model...")
     s2u = Speech2Unit(ckpt_dir=os.path.expanduser("~/speech_ai/speechgpt/utils/speech2unit/"))
 
-    # J-CHAT データセットをロード（ストリーミングモード）
-    print("Loading J-CHAT dataset from HuggingFace (streaming mode)...")
+    # ReazonSpeech データセットをロード（ストリーミングモード）
+    print(f"Loading ReazonSpeech dataset ({args.dataset}) from HuggingFace (streaming mode)...")
     print("  → WAVファイルはメモリ上で処理（ディスク保存なし）")
     try:
-        dataset = load_dataset("sarulab-speech/J-CHAT", split="train", streaming=True)
+        dataset = load_dataset(
+            "reazon-research/reazonspeech",
+            args.dataset,
+            split="train",
+            streaming=True,
+            trust_remote_code=True
+        )
     except Exception as e:
         print(f"Error loading dataset: {e}")
-        print("\nヒント: Hugging Face トークンが必要な場合は以下を実行してください：")
-        print("  huggingface-cli login")
         sys.exit(1)
 
     total_duration_hours = 0.0
@@ -109,7 +120,7 @@ def main():
     valid_lines = []
     target_hours = train_hours + valid_hours
 
-    print(f"\nProcessing samples from J-CHAT (streaming)...")
+    print(f"\nProcessing samples from ReazonSpeech (streaming)...")
     print(f"Target: {target_hours:.0f} hours (Train: {train_hours:.0f}h / Valid: {valid_hours:.0f}h)\n")
 
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -150,7 +161,7 @@ def main():
 
             except Exception as e:
                 # エラーは無視して続行
-                tqdm.write(f"  Warning: Failed to process sample {idx}: {e}")
+                print(f"  Warning: Failed to process sample {idx}: {e}")
                 continue
             finally:
                 # 一時ファイルを削除
