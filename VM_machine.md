@@ -420,3 +420,128 @@ pip install fairseq==0.12.2 soundfile
 ```
 
 simple_infer.py が自動的に subprocess で fairseq を呼び出して .wav 生成。(現状動かず)
+
+## 12. 大規模日本語訓練 (J-CHAT データセット)
+
+### 12.1 Hugging Face トークンセットアップ
+
+J-CHAT データセットにアクセスするには、Hugging Face トークンが必要です：
+
+```bash
+# Hugging Face にログイン（トークン認証）
+huggingface-cli login
+# → https://huggingface.co/settings/tokens にアクセスしてトークンを生成
+# → ターミナルにペースト
+```
+
+### 12.2 J-CHAT データセット準備（1万時間規模）
+
+J-CHAT データセットから離散化されたユニット列（train.txt, valid.txt）を生成します。
+
+#### 12.2.1 データセット処理スクリプト実行
+
+```bash
+cd ~/speech_ai
+
+# テストモード実行（1時間のみ、確認用）
+python prepare_jchat_dataset.py --test
+
+# フル訓練実行（所要時間：約23時間、GPU V100相当）
+python prepare_jchat_dataset.py
+
+# 出力確認
+ls -lh data/stage1/train.txt data/stage1/valid.txt
+wc -l data/stage1/*.txt
+```
+
+**処理内容**:
+- J-CHAT をストリーミングダウンロード（ディスク容量不要）
+- WAV ファイルはメモリ上で処理（一時ファイルはすぐ削除）
+- mHuBERT で音声 → discrete units に変換
+- 前10,000時間を train.txt に
+- 後2,000時間を valid.txt に
+
+**推定時間**:
+- ダウンロード: 1-2時間（ネットワーク速度に依存）
+- 離散化処理: 23時間（GPU V100 相当の場合）
+  - 実測: JVS 36時間 → 5分、線形外挿で 10,000時間 → 23時間
+
+#### 12.2.2 データ確認
+
+```bash
+# ファイルサイズ確認
+ls -lh data/stage1/
+
+# サンプル確認
+head -3 data/stage1/train.txt
+
+# 行数確認（サンプル数）
+echo "Train samples: $(wc -l < data/stage1/train.txt)"
+echo "Valid samples: $(wc -l < data/stage1/valid.txt)"
+```
+
+### 12.3 Stage 1 大規模訓練（J-CHAT 1万時間）
+
+#### 12.3.1 訓練実行
+
+```bash
+cd ~/speech_ai
+
+# GPU メモリに応じてバッチサイズを調整
+# V100 32GB の場合: batch_size=16 程度
+# A100 40GB の場合: batch_size=24 程度
+
+bash speechgpt/scripts/ma_pretrain.sh \
+  1 0 localhost 29500 \
+  --model-name-or-path google/gemma-2-2b-jpn-it \
+  --train-file data/stage1/train.txt \
+  --validation-file data/stage1/valid.txt \
+  --output-dir output/stage1_jchat_10k \
+  --num-train-epochs 1 \
+  --per-device-train-batch-size 16 \
+  --learning-rate 5e-5
+```
+
+#### 12.3.2 訓練モニタリング
+
+```bash
+# ログをリアルタイムで確認
+tail -f output/stage1_jchat_10k/training_args.bin
+
+# または WandB で監視（推奨）
+wandb login
+bash speechgpt/scripts/ma_pretrain.sh \
+  1 0 localhost 29500 \
+  --model-name-or-path google/gemma-2-2b-jpn-it \
+  --train-file data/stage1/train.txt \
+  --validation-file data/stage1/valid.txt \
+  --output-dir output/stage1_jchat_10k \
+  --num-train-epochs 1 \
+  --per-device-train-batch-size 16 \
+  --learning-rate 5e-5 \
+  --report_to wandb \
+  --wandb_project speech-ai-jchat-stage1
+```
+
+#### 12.3.3 推論実行（訓練後）
+
+```bash
+# 訓練済みモデルで推論テスト
+python speechgpt/src/infer/simple_infer.py \
+  --model-name-or-path output/stage1_jchat_10k/checkpoint-* \
+  --input-text "これはテストです" \
+  --output-dir output/inference_results/
+```
+
+### 12.4 Stage 1 結果の確認
+
+```bash
+# チェックポイント一覧
+ls -lh output/stage1_jchat_10k/checkpoint-*/
+
+# 最終モデルを確認
+ls -lh output/stage1_jchat_10k/pytorch_model.bin
+
+# loss グラフを WandB で確認
+# https://wandb.ai/<your-username>/speech-ai-jchat-stage1
+```
