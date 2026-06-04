@@ -100,15 +100,14 @@ def main():
     print("Loading Speech2Unit model...")
     s2u = Speech2Unit(ckpt_dir=os.path.expanduser("~/speech_ai/speechgpt/utils/speech2unit/"))
 
-    # ReazonSpeech データセットをロード（ストリーミングモード）
-    print(f"Loading ReazonSpeech dataset ({args.dataset}) from HuggingFace (streaming mode)...")
-    print("  → WAVファイルはメモリ上で処理（ディスク保存なし）")
+    # ReazonSpeech データセットをロード（ダウンロードモード）
+    print(f"Loading ReazonSpeech dataset ({args.dataset}) from HuggingFace...")
+    print("  → ダウンロード中...")
     try:
         dataset = load_dataset(
             "reazon-research/reazonspeech",
             args.dataset,
             split="train",
-            streaming=True,
             trust_remote_code=True
         )
     except Exception as e:
