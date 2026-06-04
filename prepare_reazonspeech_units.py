@@ -88,7 +88,8 @@ def main():
     dataset = load_dataset(
         "reazon-research/reazonspeech",
         "small-v1",
-        trust_remote_code=True
+        trust_remote_code=True,
+        verification_mode="no_checks"
     )
     train_data = dataset['train']
     print(f"✓ Dataset loaded\n")
