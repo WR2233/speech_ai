@@ -1,14 +1,7 @@
 #!/usr/bin/env python3
 """
-ReazonSpeech データセットから train.txtを生成
+ReazonSpeech データセットから train.txt を生成
 WAV → discrete units に変換（mHuBERT 使用）
-
-使用例:
-  # テストモード（10サンプルのみ）
-  python prepare_reazonspeech_units.py --test
-
-  # フル訓練（10,000時間）
-  python prepare_reazonspeech_units.py
 """
 
 import os
@@ -32,7 +25,7 @@ def parse_args():
         "--output-dir",
         type=str,
         default="~/speech_ai/data/stage1_reazonspeech",
-        help="出力ディレクトリ（デフォルト: ~/speech_ai/data/stage1_reazonspeech）"
+        help="出力ディレクトリ"
     )
     parser.add_argument(
         "--test",
@@ -49,7 +42,7 @@ def parse_args():
         "--temp-dir",
         type=str,
         default="/tmp/speech_ai_temp",
-        help="一時ファイルディレクトリ（デフォルト: /tmp/speech_ai_temp）"
+        help="一時ファイルディレクトリ"
     )
     return parser.parse_args()
 
@@ -68,6 +61,7 @@ def main():
         train_hours = args.train_hours
         max_samples = None
         print("=" * 60)
+        print(f"フル訓練モード: Train {train_hours:.0f}h")
         print("=" * 60)
 
     # 出力ディレクトリを作成
@@ -91,40 +85,34 @@ def main():
     train_data = dataset['train']
     print(f"✓ Dataset loaded\n")
 
+    # Temp ディレクトリを作成
+    temp_dir = Path(args.temp_dir).expanduser()
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    print(f"Temp directory: {temp_dir}\n")
+
     # ファイルを開く（追記モード）
     train_file = output_dir / "train.txt"
     train_f = open(train_file, "a", encoding="utf-8")
 
     total_duration_hours = 0.0
     train_count = 0
-
-    # Temp ディレクトリを作成
-    temp_dir = Path(args.temp_dir).expanduser()
-    temp_dir.mkdir(parents=True, exist_ok=True)
-    print(f"Temp directory: {temp_dir}\n")
+    idx = 0
+    file_counter = 0
 
     print(f"Processing samples...")
     if not args.test:
-        print(f"Train: {train_hours:.0f}h")
+        print(f"Train: {train_hours:.0f}h\n")
 
     try:
-        idx = 0
-        file_counter = 0
-        while True:
+        for sample in train_data:
             # テストモード：サンプル数制限
             if max_samples and idx >= max_samples:
                 print(f"  Reached {max_samples} samples. Stopping...")
                 break
 
-            # データセット終了判定
-            if idx >= len(train_data):
-                print(f"  Reached end of dataset ({idx} samples).")
-                break
-
             temp_wav_path = None
             try:
-                # オーディオを取得（インデックスベースアクセス）
-                sample = train_data[idx]
+                # オーディオを取得
                 audio = sample['audio']
                 wav = audio['array']
                 sr = audio['sampling_rate']
@@ -165,8 +153,9 @@ def main():
                     temp_wav_path.unlink()
                 idx += 1
 
-    # ファイルを閉じる
-    train_f.close()
+    finally:
+        # ファイルを閉じる
+        train_f.close()
 
     # 統計情報
     print(f"\n{'='*60}")
