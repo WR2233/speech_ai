@@ -104,54 +104,59 @@ def main():
         print(f"Train: {train_hours:.0f}h\n")
 
     try:
-        for sample in train_data:
-            # テストモード：サンプル数制限
-            if max_samples and idx >= max_samples:
-                print(f"  Reached {max_samples} samples. Stopping...")
-                break
-
-            temp_wav_path = None
-            try:
-                # オーディオを取得
-                audio = sample['audio']
-                wav = audio['array']
-                sr = audio['sampling_rate']
-
-                # 音声の長さ（秒）
-                duration_sec = len(wav) / sr
-                total_duration_hours += duration_sec / 3600
-
-                # 一時ファイルに保存
-                temp_wav_path = temp_dir / f"temp_{file_counter}.wav"
-                sf.write(str(temp_wav_path), wav, sr)
-                file_counter += 1
-
-                # units に変換
-                units = s2u(str(temp_wav_path), merged=True)
-
-                # 都度書き込み
-                if total_duration_hours <= train_hours:
-                    train_f.write(f"{units}\n")
-                    train_f.flush()
-                    train_count += 1
-
-                # 進捗表示
-                if (idx + 1) % 10 == 0 or args.test:
-                    print(f"  [{idx + 1:6d}] {total_duration_hours:7.2f}h | Train: {train_count:6d}")
-
-                # フル実行時：目標時間に達したら終了
-                if not args.test and total_duration_hours >= train_hours:
-                    print(f"  Reached {train_hours:.0f} hours. Stopping...")
+        try:
+            for sample in train_data:
+                # テストモード：サンプル数制限
+                if max_samples and idx >= max_samples:
+                    print(f"  Reached {max_samples} samples. Stopping...")
                     break
 
-            except Exception as e:
-                print(f"  [{idx}] Skipped: {e}")
+                temp_wav_path = None
+                try:
+                    # オーディオを取得
+                    audio = sample['audio']
+                    wav = audio['array']
+                    sr = audio['sampling_rate']
 
-            finally:
-                # 一時ファイルを削除
-                if temp_wav_path and temp_wav_path.exists():
-                    temp_wav_path.unlink()
-                idx += 1
+                    # 音声の長さ（秒）
+                    duration_sec = len(wav) / sr
+                    total_duration_hours += duration_sec / 3600
+
+                    # 一時ファイルに保存
+                    temp_wav_path = temp_dir / f"temp_{file_counter}.wav"
+                    sf.write(str(temp_wav_path), wav, sr)
+                    file_counter += 1
+
+                    # units に変換
+                    units = s2u(str(temp_wav_path), merged=True)
+
+                    # 都度書き込み
+                    if total_duration_hours <= train_hours:
+                        train_f.write(f"{units}\n")
+                        train_f.flush()
+                        train_count += 1
+
+                    # 進捗表示
+                    if (idx + 1) % 10 == 0 or args.test:
+                        print(f"  [{idx + 1:6d}] {total_duration_hours:7.2f}h | Train: {train_count:6d}")
+
+                    # フル実行時：目標時間に達したら終了
+                    if not args.test and total_duration_hours >= train_hours:
+                        print(f"  Reached {train_hours:.0f} hours. Stopping...")
+                        break
+
+                except Exception as e:
+                    print(f"  [{idx}] Skipped: {e}")
+
+                finally:
+                    # 一時ファイルを削除
+                    if temp_wav_path and temp_wav_path.exists():
+                        temp_wav_path.unlink()
+                    idx += 1
+
+        except Exception as e:
+            print(f"\n  ⚠️  Dataset iteration error: {e}")
+            print(f"  → Continuing with {train_count} samples collected\n")
 
     finally:
         # ファイルを閉じる
