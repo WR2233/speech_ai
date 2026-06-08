@@ -165,8 +165,9 @@ def main():
                     temp_wav_path.unlink()
                 idx += 1
 
-    # ファイルを閉じる
-    train_f.close()
+    finally:
+        # ファイルを閉じる
+        train_f.close()
 
     # 統計情報
     print(f"\n{'='*60}")
